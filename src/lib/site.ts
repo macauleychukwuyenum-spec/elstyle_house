@@ -5,10 +5,10 @@ export const site = {
   // WhatsApp number in international format, digits only (no + or spaces).
   whatsappNumber: "2348139485908",
   whatsappMessage: "Hello EL STYLE HOUSE, I'd like to make an enquiry.",
-  email: "hello@elstylehouse.com",
+  email: "elstylehouse@gmail.com",
   phoneDisplay: "+234 813 948 5908",
-  address: "Lagos, Nigeria",
-  instagram: "https://instagram.com",
+  address: "86, Ziks Avenue, Uwani, Enugu, Nigeria",
+  instagram: "https://www.instagram.com/elstylehouse?igsh=dWxzNW9jOG55dnFj",
   businessHours: "Mon – Sat, 9:00am – 7:00pm",
 };
 
