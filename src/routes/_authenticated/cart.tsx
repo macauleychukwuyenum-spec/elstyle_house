@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_authenticated/cart")({
   component: Cart,
 });
 
-const DELIVERY_FEE = 5000;
+const DELIVERY_FEE ="not included" ;
 
 export type CartRow = {
   id: string;
