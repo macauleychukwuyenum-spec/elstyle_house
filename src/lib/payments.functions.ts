@@ -4,15 +4,17 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { DEFAULT_DELIVERY_FEE, getDeliveryFeeForState } from "@/lib/nigeria";
 
-const DELIVERY_FEE = 5000;
 const FLW_BASE = "https://api.flutterwave.com/v3";
 
 const checkoutSchema = z.object({
   customer_name: z.string().trim().min(2).max(120),
   customer_email: z.string().trim().email().max(255),
   customer_phone: z.string().trim().min(6).max(30),
-  address_line: z.string().trim().min(3).max(300),
+  address_source: z.enum(["profile", "new"]).optional().default("new"),
+  fulfillment_method: z.enum(["delivery", "pickup"]).optional().default("delivery"),
+  address_line: z.string().trim().max(300).optional().default(""),
   city: z.string().trim().max(120).optional().default(""),
   state: z.string().trim().max(120).optional().default(""),
 });
@@ -59,8 +61,55 @@ export const initiateFlutterwavePayment = createServerFn({ method: "POST" })
       };
     });
 
+    let addressLine = data.address_line;
+    let city = data.city;
+    let state = data.state;
+
+    if (data.fulfillment_method === "delivery" && data.address_source === "profile") {
+      const { data: address, error: addressError } = await supabase
+        .from("addresses")
+        .select("line1, city, state")
+        .eq("user_id", userId)
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (addressError) throw new Error("Could not read your profile address.");
+      if (!address?.line1 || !address.state) {
+        throw new Error("Add a default profile address with a state before choosing delivery.");
+      }
+      addressLine = address.line1;
+      city = address.city ?? "";
+      state = address.state;
+    }
+
+    if (data.fulfillment_method === "delivery" && (!addressLine || !state)) {
+      throw new Error("Please complete your delivery address and state.");
+    }
+
+    if (data.fulfillment_method === "pickup") {
+      addressLine = "Customer pickup";
+      city = "";
+      state = "";
+    }
+
+    const { data: settingsRow } = await supabaseAdmin
+      .from("site_settings")
+      .select("data")
+      .eq("id", true)
+      .maybeSingle();
+    const settings = settingsRow?.data && typeof settingsRow.data === "object" && !Array.isArray(settingsRow.data)
+      ? settingsRow.data
+      : {};
+    const fallbackDeliveryFee =
+      typeof settings.deliveryFee === "number" ? settings.deliveryFee : DEFAULT_DELIVERY_FEE;
+    const deliveryFee =
+      data.fulfillment_method === "delivery"
+        ? getDeliveryFeeForState(settings, state, fallbackDeliveryFee)
+        : 0;
+
     const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-    const total = subtotal + DELIVERY_FEE;
+    const total = subtotal + deliveryFee;
     if (total <= 0) throw new Error("Invalid order total.");
 
     const txRef = `ELSH-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
@@ -73,11 +122,11 @@ export const initiateFlutterwavePayment = createServerFn({ method: "POST" })
         customer_name: data.customer_name,
         customer_email: data.customer_email,
         customer_phone: data.customer_phone,
-        address_line: data.address_line,
-        city: data.city,
-        state: data.state,
+        address_line: addressLine,
+        city,
+        state,
         subtotal,
-        delivery_fee: DELIVERY_FEE,
+        delivery_fee: deliveryFee,
         total,
         status: "pending",
         payment_provider: "flutterwave",
