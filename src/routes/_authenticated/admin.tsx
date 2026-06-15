@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Enums, Json, Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { formatNaira } from "@/lib/format";
+import { getDeliveryFeesByState, NIGERIA_STATES } from "@/lib/nigeria";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin Panel - EL STYLE HOUSE" }] }),
@@ -400,16 +401,25 @@ function Admin() {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
     const current = objectSettings(data?.settings?.data);
-    const next = {
-      ...current,
-      announcement: nullableString(fd.get("announcement")) ?? "",
-      whatsapp: nullableString(fd.get("whatsapp")) ?? "",
-      deliveryFee: Number(fd.get("deliveryFee") || 0),
-      acceptingOrders: fd.get("acceptingOrders") === "on",
-      maintenanceMode: fd.get("maintenanceMode") === "on",
-    };
 
     await run("settings-save", "Settings saved.", async () => {
+      const announcementImageFile = getFormFile(fd, "announcement_image");
+      const announcementImageUrl = announcementImageFile
+        ? await uploadStoreImage(announcementImageFile, "announcements")
+        : stringSetting(current.announcementImageUrl);
+      const deliveryFeesByState = Object.fromEntries(
+        NIGERIA_STATES.map((state) => [state, Number(fd.get(`deliveryFee:${state}`) || 0)]),
+      );
+      const next = {
+        ...current,
+        announcement: nullableString(fd.get("announcement")) ?? "",
+        announcementImageUrl,
+        whatsapp: nullableString(fd.get("whatsapp")) ?? "",
+        deliveryFee: Number(fd.get("deliveryFee") || 0),
+        deliveryFeesByState,
+        acceptingOrders: fd.get("acceptingOrders") === "on",
+        maintenanceMode: fd.get("maintenanceMode") === "on",
+      };
       const { error } = await supabase
         .from("site_settings")
         .upsert({ id: true, data: next }, { onConflict: "id" });
@@ -1924,15 +1934,26 @@ function SettingsPanel({
   busy: string | null;
   saveSettings: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
 }) {
+  const deliveryFees = getDeliveryFeesByState(settings);
+  const announcementImageUrl = stringSetting(settings.announcementImageUrl);
+
   return (
     <div className="space-y-6">
       <PanelTitle
         title="Store settings"
         description="Update reusable store settings saved in the site_settings table."
       />
-      <form onSubmit={saveSettings} className="max-w-2xl rounded-md border border-ink/10 bg-card p-4">
+      <form onSubmit={saveSettings} className="max-w-5xl rounded-md border border-ink/10 bg-card p-4">
         <Field label="Announcement">
           <input name="announcement" defaultValue={stringSetting(settings.announcement)} className={input} />
+        </Field>
+        <Field label="Announcement image">
+          <input name="announcement_image" type="file" accept="image/*" className={fileInput} />
+          {announcementImageUrl && (
+            <div className="mt-3 overflow-hidden rounded-md border border-ink/10">
+              <img src={announcementImageUrl} alt="Current announcement" className="h-40 w-full object-cover" />
+            </div>
+          )}
         </Field>
         <Field label="WhatsApp number or link">
           <input name="whatsapp" defaultValue={stringSetting(settings.whatsapp)} className={input} />
@@ -1946,6 +1967,23 @@ function SettingsPanel({
             className={input}
           />
         </Field>
+        <div className="mt-6">
+          <p className={label}>Delivery fees by state</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {NIGERIA_STATES.map((state) => (
+              <label key={state} className="block rounded-md border border-ink/10 bg-canvas p-3">
+                <span className="text-xs font-semibold text-muted-warm">{state}</span>
+                <input
+                  name={`deliveryFee:${state}`}
+                  type="number"
+                  min="0"
+                  defaultValue={deliveryFees[state] ?? numberSetting(settings.deliveryFee)}
+                  className={`${input} mt-2`}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
         <div className="mt-4 flex flex-wrap gap-3">
           <CheckField
             name="acceptingOrders"
@@ -1962,7 +2000,7 @@ function SettingsPanel({
           disabled={busy === "settings-save"}
           className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-4 text-sm font-bold text-canvas disabled:opacity-60"
         >
-          <Save className="size-4" />
+          {busy === "settings-save" ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
           Save settings
         </button>
       </form>
