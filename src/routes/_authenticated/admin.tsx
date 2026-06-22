@@ -25,6 +25,14 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Enums, Json, Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { formatNaira } from "@/lib/format";
+import {
+  fabricsCategory,
+  isPresetShopCategory,
+  shopCategoryAdminLabel,
+  shopCategoryPresets,
+  shopMenuSections,
+  sortShopCategories,
+} from "@/lib/navigation";
 import { getDeliveryFeesByState, NIGERIA_STATES } from "@/lib/nigeria";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -150,8 +158,17 @@ function errorMessage(error: unknown) {
       hint?: unknown;
       code?: unknown;
     };
-    const message = [fields.message, fields.error_description, fields.error, fields.details, fields.hint, fields.code]
-      .filter((value): value is string | number => typeof value === "string" || typeof value === "number")
+    const message = [
+      fields.message,
+      fields.error_description,
+      fields.error,
+      fields.details,
+      fields.hint,
+      fields.code,
+    ]
+      .filter(
+        (value): value is string | number => typeof value === "string" || typeof value === "number",
+      )
       .map(String)
       .filter(Boolean)
       .join(" ");
@@ -197,9 +214,12 @@ function Admin() {
       activeProducts: products.filter((product) => product.is_active).length,
       lowStock: products.filter((product) => product.stock <= 3).length,
       pendingReviews: reviews.filter((review) => review.status === "pending").length,
-      openOrders: orders.filter((order) => !["delivered", "cancelled"].includes(order.status)).length,
+      openOrders: orders.filter((order) => !["delivered", "cancelled"].includes(order.status))
+        .length,
       users: data?.profiles.length ?? 0,
-      customOrders: customOrders.filter((order) => !["rejected", "completed"].includes(order.status)).length,
+      customOrders: customOrders.filter(
+        (order) => !["rejected", "completed"].includes(order.status),
+      ).length,
       unreadMessages: data?.messages.filter((message) => !message.is_responded).length ?? 0,
       revenue,
     };
@@ -297,14 +317,17 @@ function Admin() {
           .single();
         if (!error) {
           product = data;
-          if (slug !== baseSlug) toast.info(`Slug "${baseSlug}" already existed, so this product used "${slug}".`);
+          if (slug !== baseSlug)
+            toast.info(`Slug "${baseSlug}" already existed, so this product used "${slug}".`);
           break;
         }
         if (!isDuplicateSlugError(error)) throw error;
       }
 
       if (!product) {
-        throw new Error("Could not create a unique product slug. Enter a different slug and try again.");
+        throw new Error(
+          "Could not create a unique product slug. Enter a different slug and try again.",
+        );
       }
 
       const imageFile = getFormFile(fd, "image_file");
@@ -459,7 +482,9 @@ function Admin() {
           </div>
         ) : dashboard.isError ? (
           <div className="rounded-md border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">
-            {dashboard.error instanceof Error ? dashboard.error.message : "Could not load admin data."}
+            {dashboard.error instanceof Error
+              ? dashboard.error.message
+              : "Could not load admin data."}
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -480,7 +505,9 @@ function Admin() {
             </nav>
 
             <section className="min-w-0">
-              {data?.missingTables.length ? <MissingTablesNotice tables={data.missingTables} /> : null}
+              {data?.missingTables.length ? (
+                <MissingTablesNotice tables={data.missingTables} />
+              ) : null}
 
               {tab === "overview" && data && (
                 <Overview
@@ -552,11 +579,7 @@ function Admin() {
               )}
 
               {tab === "settings" && (
-                <SettingsPanel
-                  settings={settings}
-                  busy={busy}
-                  saveSettings={saveSettings}
-                />
+                <SettingsPanel settings={settings} busy={busy} saveSettings={saveSettings} />
               )}
             </section>
           </div>
@@ -585,11 +608,17 @@ async function fetchAdminDashboard(): Promise<AdminDashboard> {
       "products",
       supabase
         .from("products")
-        .select("*, product_images(*), product_variants(*), categories(name,slug), collections(name,slug)")
+        .select(
+          "*, product_images(*), product_variants(*), categories(name,slug), collections(name,slug)",
+        )
         .order("created_at", { ascending: false }),
       [],
     ),
-    readTable<CategoryRow[]>("categories", supabase.from("categories").select("*").order("name"), []),
+    readTable<CategoryRow[]>(
+      "categories",
+      supabase.from("categories").select("*").order("name"),
+      [],
+    ),
     readTable<CollectionRow[]>(
       "collections",
       supabase.from("collections").select("*").order("sort_order"),
@@ -597,7 +626,10 @@ async function fetchAdminDashboard(): Promise<AdminDashboard> {
     ),
     readTable<ReviewRow[]>(
       "reviews",
-      supabase.from("reviews").select("*, products(name,slug)").order("created_at", { ascending: false }),
+      supabase
+        .from("reviews")
+        .select("*, products(name,slug)")
+        .order("created_at", { ascending: false }),
       [],
     ),
     readTable<OrderRow[]>(
@@ -661,15 +693,13 @@ async function fetchAdminDashboard(): Promise<AdminDashboard> {
 
   return {
     products: products.data ?? [],
-    categories: categories.data ?? [],
+    categories: sortShopCategories(categories.data ?? []),
     collections: collections.data ?? [],
     reviews: reviews.data ?? [],
     orders: orders.data ?? [],
     profiles: (profiles.data ?? []).map((profile) => ({
       ...profile,
-      roles: roleRows
-        .filter((role) => role.user_id === profile.id)
-        .map((role) => role.role),
+      roles: roleRows.filter((role) => role.user_id === profile.id).map((role) => role.role),
     })),
     customOrders: customOrders.data ?? [],
     blogPosts: blogPosts.data ?? [],
@@ -759,7 +789,10 @@ function Overview({
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <div>
-          <PanelTitle title="Latest messages" description={`${stats.unreadMessages} unread customer message(s)`} />
+          <PanelTitle
+            title="Latest messages"
+            description={`${stats.unreadMessages} unread customer message(s)`}
+          />
           <div className="mt-4 grid gap-3">
             {messages.slice(0, 4).map((message) => (
               <div key={message.id} className="rounded-md border border-ink/10 bg-card p-4">
@@ -777,7 +810,10 @@ function Overview({
           </div>
         </div>
         <div>
-          <PanelTitle title="Inventory watch" description="Products that may need restocking or publication." />
+          <PanelTitle
+            title="Inventory watch"
+            description="Products that may need restocking or publication."
+          />
           <div className="mt-4 grid gap-3">
             {products
               .filter((product) => product.stock <= 3 || !product.is_active)
@@ -821,6 +857,14 @@ function ProductsPanel({
   run: RunAction;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
+  const categoryBySlug = useMemo(
+    () => new Map(categories.map((category) => [category.slug, category])),
+    [categories],
+  );
+  const customCategories = useMemo(
+    () => categories.filter((category) => !isPresetShopCategory(category.slug)),
+    [categories],
+  );
 
   return (
     <div className="space-y-6">
@@ -848,11 +892,35 @@ function ProductsPanel({
           <Field label="Category">
             <select name="category_id" className={input}>
               <option value="">No category</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
+              {shopMenuSections.map((section) => (
+                <optgroup key={section.label} label={section.label}>
+                  {section.items.map((item) => {
+                    const category = categoryBySlug.get(item.slug);
+                    return (
+                      <option key={item.slug} value={category?.id ?? item.slug} disabled={!category}>
+                        {item.label}
+                        {category ? "" : " (add in Catalog)"}
+                      </option>
+                    );
+                  })}
+                </optgroup>
               ))}
+              <option
+                value={categoryBySlug.get(fabricsCategory.slug)?.id ?? fabricsCategory.slug}
+                disabled={!categoryBySlug.has(fabricsCategory.slug)}
+              >
+                {fabricsCategory.label}
+                {categoryBySlug.has(fabricsCategory.slug) ? "" : " (add in Catalog)"}
+              </option>
+              {customCategories.length > 0 && (
+                <optgroup label="Other">
+                  {customCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </Field>
           <Field label="Collection">
@@ -936,9 +1004,17 @@ function ProductsPanel({
                     danger
                     busy={busy === `delete-product-${product.id}`}
                     onClick={() => {
-                      if (!confirm(`Delete ${product.name}? This removes images, variants, cart and wishlist links.`)) return;
+                      if (
+                        !confirm(
+                          `Delete ${product.name}? This removes images, variants, cart and wishlist links.`,
+                        )
+                      )
+                        return;
                       run(`delete-product-${product.id}`, "Product deleted.", async () => {
-                        const { error } = await supabase.from("products").delete().eq("id", product.id);
+                        const { error } = await supabase
+                          .from("products")
+                          .delete()
+                          .eq("id", product.id);
                         if (error) throw error;
                       });
                     }}
@@ -965,7 +1041,9 @@ function ProductsPanel({
             </div>
           );
         })}
-        {products.length === 0 && <EmptyState>No products yet. Add your first product above.</EmptyState>}
+        {products.length === 0 && (
+          <EmptyState>No products yet. Add your first product above.</EmptyState>
+        )}
       </div>
     </div>
   );
@@ -984,6 +1062,15 @@ function ProductEditForm({
   busy: string | null;
   run: RunAction;
 }) {
+  const categoryBySlug = useMemo(
+    () => new Map(categories.map((category) => [category.slug, category])),
+    [categories],
+  );
+  const customCategories = useMemo(
+    () => categories.filter((category) => !isPresetShopCategory(category.slug)),
+    [categories],
+  );
+
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
@@ -1028,10 +1115,25 @@ function ProductEditForm({
           <input name="slug" defaultValue={product.slug} className={input} required />
         </Field>
         <Field label="Price">
-          <input name="price" type="number" min="0" step="0.01" defaultValue={product.price} className={input} required />
+          <input
+            name="price"
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue={product.price}
+            className={input}
+            required
+          />
         </Field>
         <Field label="Stock">
-          <input name="stock" type="number" min="0" defaultValue={product.stock} className={input} required />
+          <input
+            name="stock"
+            type="number"
+            min="0"
+            defaultValue={product.stock}
+            className={input}
+            required
+          />
         </Field>
         <Field label="Compare at">
           <input
@@ -1046,11 +1148,35 @@ function ProductEditForm({
         <Field label="Category">
           <select name="category_id" defaultValue={product.category_id ?? ""} className={input}>
             <option value="">No category</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
+            {shopMenuSections.map((section) => (
+              <optgroup key={section.label} label={section.label}>
+                {section.items.map((item) => {
+                  const category = categoryBySlug.get(item.slug);
+                  return (
+                    <option key={item.slug} value={category?.id ?? item.slug} disabled={!category}>
+                      {item.label}
+                      {category ? "" : " (add in Catalog)"}
+                    </option>
+                  );
+                })}
+              </optgroup>
             ))}
+            <option
+              value={categoryBySlug.get(fabricsCategory.slug)?.id ?? fabricsCategory.slug}
+              disabled={!categoryBySlug.has(fabricsCategory.slug)}
+            >
+              {fabricsCategory.label}
+              {categoryBySlug.has(fabricsCategory.slug) ? "" : " (add in Catalog)"}
+            </option>
+            {customCategories.length > 0 && (
+              <optgroup label="Other">
+                {customCategories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </Field>
         <Field label="Collection">
@@ -1065,13 +1191,25 @@ function ProductEditForm({
         </Field>
       </div>
       <Field label="Description">
-        <textarea name="description" defaultValue={product.description ?? ""} className={textarea} />
+        <textarea
+          name="description"
+          defaultValue={product.description ?? ""}
+          className={textarea}
+        />
       </Field>
       <div className="mt-4 flex flex-wrap gap-3">
         <CheckField name="is_active" label="Active" defaultChecked={product.is_active} />
         <CheckField name="is_featured" label="Featured" defaultChecked={product.is_featured} />
-        <CheckField name="is_new_arrival" label="New arrival" defaultChecked={product.is_new_arrival} />
-        <CheckField name="is_best_seller" label="Best seller" defaultChecked={product.is_best_seller} />
+        <CheckField
+          name="is_new_arrival"
+          label="New arrival"
+          defaultChecked={product.is_new_arrival}
+        />
+        <CheckField
+          name="is_best_seller"
+          label="Best seller"
+          defaultChecked={product.is_best_seller}
+        />
       </div>
       <button
         disabled={busy === `product-save-${product.id}`}
@@ -1084,7 +1222,15 @@ function ProductEditForm({
   );
 }
 
-function ProductMedia({ product, busy, run }: { product: ProductRow; busy: string | null; run: RunAction }) {
+function ProductMedia({
+  product,
+  busy,
+  run,
+}: {
+  product: ProductRow;
+  busy: string | null;
+  run: RunAction;
+}) {
   const addImage = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -1124,8 +1270,15 @@ function ProductMedia({ product, busy, run }: { product: ProductRow; busy: strin
       </form>
       <div className="mt-3 grid gap-2">
         {(product.product_images ?? []).map((image) => (
-          <div key={image.id} className="flex items-center gap-3 rounded-md border border-ink/10 bg-card p-2">
-            <img src={image.url} alt={image.alt ?? product.name} className="size-14 rounded-md object-cover" />
+          <div
+            key={image.id}
+            className="flex items-center gap-3 rounded-md border border-ink/10 bg-card p-2"
+          >
+            <img
+              src={image.url}
+              alt={image.alt ?? product.name}
+              className="size-14 rounded-md object-cover"
+            />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm">{image.alt || "Product image"}</p>
               <p className="truncate text-xs text-muted-warm">{image.url}</p>
@@ -1136,7 +1289,10 @@ function ProductMedia({ product, busy, run }: { product: ProductRow; busy: strin
               busy={busy === `image-delete-${image.id}`}
               onClick={() =>
                 run(`image-delete-${image.id}`, "Image deleted.", async () => {
-                  const { error } = await supabase.from("product_images").delete().eq("id", image.id);
+                  const { error } = await supabase
+                    .from("product_images")
+                    .delete()
+                    .eq("id", image.id);
                   if (error) throw error;
                 })
               }
@@ -1150,7 +1306,15 @@ function ProductMedia({ product, busy, run }: { product: ProductRow; busy: strin
   );
 }
 
-function ProductVariants({ product, busy, run }: { product: ProductRow; busy: string | null; run: RunAction }) {
+function ProductVariants({
+  product,
+  busy,
+  run,
+}: {
+  product: ProductRow;
+  busy: string | null;
+  run: RunAction;
+}) {
   const addVariant = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -1186,7 +1350,10 @@ function ProductVariants({ product, busy, run }: { product: ProductRow; busy: st
       </form>
       <div className="mt-3 grid gap-2">
         {(product.product_variants ?? []).map((variant) => (
-          <div key={variant.id} className="flex items-center justify-between gap-3 rounded-md border border-ink/10 bg-card p-2">
+          <div
+            key={variant.id}
+            className="flex items-center justify-between gap-3 rounded-md border border-ink/10 bg-card p-2"
+          >
             <div className="text-sm">
               <p className="font-semibold">
                 {variant.size || "Any size"} / {variant.color || "Any color"}
@@ -1201,7 +1368,10 @@ function ProductVariants({ product, busy, run }: { product: ProductRow; busy: st
               busy={busy === `variant-delete-${variant.id}`}
               onClick={() =>
                 run(`variant-delete-${variant.id}`, "Variant deleted.", async () => {
-                  const { error } = await supabase.from("product_variants").delete().eq("id", variant.id);
+                  const { error } = await supabase
+                    .from("product_variants")
+                    .delete()
+                    .eq("id", variant.id);
                   if (error) throw error;
                 })
               }
@@ -1230,19 +1400,62 @@ function CatalogPanel({
   addCollection: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
   run: RunAction;
 }) {
+  const categorySlugs = useMemo(
+    () => new Set(categories.map((category) => category.slug)),
+    [categories],
+  );
+  const missingPresetCategories = useMemo(
+    () => shopCategoryPresets.filter((category) => !categorySlugs.has(category.slug)),
+    [categorySlugs],
+  );
+
   return (
     <div className="space-y-6">
-      <PanelTitle title="Catalog" description="Manage categories and collections used across the shop." />
+      <PanelTitle
+        title="Catalog"
+        description="Manage the categories and collections used across the public shop menu."
+      />
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-md border border-ink/10 bg-card p-4">
           <h3 className="font-serif text-2xl">Categories</h3>
           <form onSubmit={addCategory} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
             <input name="name" placeholder="Name" className={input} required />
             <input name="slug" placeholder="Slug" className={input} />
-            <button disabled={busy === "category-add"} className="min-h-11 rounded-md bg-ink px-4 text-sm font-bold text-canvas">
+            <button
+              disabled={busy === "category-add"}
+              className="min-h-11 rounded-md bg-ink px-4 text-sm font-bold text-canvas"
+            >
               Add
             </button>
           </form>
+          {missingPresetCategories.length > 0 && (
+            <div className="mt-4 rounded-md border border-ink/10 bg-canvas p-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-warm">
+                Menu categories to add
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {missingPresetCategories.map((category) => (
+                  <button
+                    key={category.slug}
+                    type="button"
+                    disabled={busy === `category-preset-${category.slug}`}
+                    onClick={() =>
+                      run(`category-preset-${category.slug}`, "Menu category added.", async () => {
+                        const { error } = await supabase.from("categories").insert({
+                          name: shopCategoryAdminLabel(category.slug, category.label),
+                          slug: category.slug,
+                        });
+                        if (error) throw error;
+                      })
+                    }
+                    className="min-h-10 rounded-md border border-ink/15 px-3 text-xs font-semibold transition hover:bg-secondary disabled:opacity-60"
+                  >
+                    Add {shopCategoryAdminLabel(category.slug, category.label)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="mt-4 space-y-2">
             {categories.map((category) => (
               <CatalogRow
@@ -1251,9 +1464,17 @@ function CatalogPanel({
                 subtitle={category.slug}
                 busy={busy === `category-delete-${category.id}`}
                 onDelete={() => {
-                  if (!confirm(`Delete category ${category.name}? Products using it will become uncategorized.`)) return;
+                  if (
+                    !confirm(
+                      `Delete category ${category.name}? Products using it will become uncategorized.`,
+                    )
+                  )
+                    return;
                   run(`category-delete-${category.id}`, "Category deleted.", async () => {
-                    const { error } = await supabase.from("categories").delete().eq("id", category.id);
+                    const { error } = await supabase
+                      .from("categories")
+                      .delete()
+                      .eq("id", category.id);
                     if (error) throw error;
                   });
                 }}
@@ -1268,11 +1489,20 @@ function CatalogPanel({
             <div className="grid gap-3 sm:grid-cols-3">
               <input name="name" placeholder="Name" className={input} required />
               <input name="slug" placeholder="Slug" className={input} />
-              <input name="sort_order" type="number" placeholder="Sort" defaultValue={0} className={input} />
+              <input
+                name="sort_order"
+                type="number"
+                placeholder="Sort"
+                defaultValue={0}
+                className={input}
+              />
             </div>
             <input name="image_file" type="file" accept="image/*" className={fileInput} />
             <textarea name="description" placeholder="Description" className={textarea} />
-            <button disabled={busy === "collection-add"} className="min-h-11 rounded-md bg-ink px-4 text-sm font-bold text-canvas">
+            <button
+              disabled={busy === "collection-add"}
+              className="min-h-11 rounded-md bg-ink px-4 text-sm font-bold text-canvas"
+            >
               Add collection
             </button>
           </form>
@@ -1284,9 +1514,17 @@ function CatalogPanel({
                 subtitle={`${collection.slug} / sort ${collection.sort_order}`}
                 busy={busy === `collection-delete-${collection.id}`}
                 onDelete={() => {
-                  if (!confirm(`Delete collection ${collection.name}? Products using it will lose this collection.`)) return;
+                  if (
+                    !confirm(
+                      `Delete collection ${collection.name}? Products using it will lose this collection.`,
+                    )
+                  )
+                    return;
                   run(`collection-delete-${collection.id}`, "Collection deleted.", async () => {
-                    const { error } = await supabase.from("collections").delete().eq("id", collection.id);
+                    const { error } = await supabase
+                      .from("collections")
+                      .delete()
+                      .eq("id", collection.id);
                     if (error) throw error;
                   });
                 }}
@@ -1300,7 +1538,15 @@ function CatalogPanel({
   );
 }
 
-function OrdersPanel({ orders, busy, run }: { orders: OrderRow[]; busy: string | null; run: RunAction }) {
+function OrdersPanel({
+  orders,
+  busy,
+  run,
+}: {
+  orders: OrderRow[];
+  busy: string | null;
+  run: RunAction;
+}) {
   return (
     <div className="space-y-6">
       <PanelTitle
@@ -1314,10 +1560,13 @@ function OrdersPanel({ orders, busy, run }: { orders: OrderRow[]; busy: string |
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold">Order #{order.id.slice(0, 8)}</p>
-                  <StatusPill tone={order.status === "cancelled" ? "bad" : "good"}>{order.status}</StatusPill>
+                  <StatusPill tone={order.status === "cancelled" ? "bad" : "good"}>
+                    {order.status}
+                  </StatusPill>
                 </div>
                 <p className="mt-1 text-sm text-muted-warm">
-                  {order.customer_name} / {order.customer_email} / {order.customer_phone ?? "No phone"}
+                  {order.customer_name} / {order.customer_email} /{" "}
+                  {order.customer_phone ?? "No phone"}
                 </p>
                 <p className="mt-1 text-sm text-muted-warm">
                   {order.address_line ?? "No address"}, {order.city ?? ""} {order.state ?? ""}
@@ -1338,7 +1587,10 @@ function OrdersPanel({ orders, busy, run }: { orders: OrderRow[]; busy: string |
                   onChange={(event) => {
                     const status = event.currentTarget.value as Enums<"order_status">;
                     run(`order-${order.id}`, "Order status updated.", async () => {
-                      const { error } = await supabase.from("orders").update({ status }).eq("id", order.id);
+                      const { error } = await supabase
+                        .from("orders")
+                        .update({ status })
+                        .eq("id", order.id);
                       if (error) throw error;
                     });
                   }}
@@ -1374,7 +1626,15 @@ function OrdersPanel({ orders, busy, run }: { orders: OrderRow[]; busy: string |
   );
 }
 
-function ReviewsPanel({ reviews, busy, run }: { reviews: ReviewRow[]; busy: string | null; run: RunAction }) {
+function ReviewsPanel({
+  reviews,
+  busy,
+  run,
+}: {
+  reviews: ReviewRow[];
+  busy: string | null;
+  run: RunAction;
+}) {
   return (
     <div className="space-y-6">
       <PanelTitle
@@ -1392,7 +1652,15 @@ function ReviewsPanel({ reviews, busy, run }: { reviews: ReviewRow[]; busy: stri
                   {review.author_name ?? "Customer"}
                 </p>
               </div>
-              <StatusPill tone={review.status === "approved" ? "good" : review.status === "rejected" ? "bad" : "warn"}>
+              <StatusPill
+                tone={
+                  review.status === "approved"
+                    ? "good"
+                    : review.status === "rejected"
+                      ? "bad"
+                      : "warn"
+                }
+              >
                 {review.status}
               </StatusPill>
             </div>
@@ -1402,7 +1670,10 @@ function ReviewsPanel({ reviews, busy, run }: { reviews: ReviewRow[]; busy: stri
                 busy={busy === `review-approve-${review.id}`}
                 onClick={() =>
                   run(`review-approve-${review.id}`, "Review approved.", async () => {
-                    const { error } = await supabase.from("reviews").update({ status: "approved" }).eq("id", review.id);
+                    const { error } = await supabase
+                      .from("reviews")
+                      .update({ status: "approved" })
+                      .eq("id", review.id);
                     if (error) throw error;
                   })
                 }
@@ -1414,7 +1685,10 @@ function ReviewsPanel({ reviews, busy, run }: { reviews: ReviewRow[]; busy: stri
                 busy={busy === `review-reject-${review.id}`}
                 onClick={() =>
                   run(`review-reject-${review.id}`, "Review rejected.", async () => {
-                    const { error } = await supabase.from("reviews").update({ status: "rejected" }).eq("id", review.id);
+                    const { error } = await supabase
+                      .from("reviews")
+                      .update({ status: "rejected" })
+                      .eq("id", review.id);
                     if (error) throw error;
                   })
                 }
@@ -1554,7 +1828,10 @@ function UsersPanel({
                         disabled={isSelf}
                         busy={busy === `delete-user-${profile.id}`}
                         onClick={() => {
-                          if (!confirm(`Delete ${profile.email || profile.full_name || "this user"}?`)) return;
+                          if (
+                            !confirm(`Delete ${profile.email || profile.full_name || "this user"}?`)
+                          )
+                            return;
                           run(`delete-user-${profile.id}`, "User deleted.", () =>
                             authFetch({ action: "delete", userId: profile.id }),
                           );
@@ -1575,7 +1852,15 @@ function UsersPanel({
   );
 }
 
-function CustomOrdersPanel({ orders, busy, run }: { orders: CustomOrderRow[]; busy: string | null; run: RunAction }) {
+function CustomOrdersPanel({
+  orders,
+  busy,
+  run,
+}: {
+  orders: CustomOrderRow[];
+  busy: string | null;
+  run: RunAction;
+}) {
   return (
     <div className="space-y-6">
       <PanelTitle
@@ -1592,7 +1877,15 @@ function CustomOrdersPanel({ orders, busy, run }: { orders: CustomOrderRow[]; bu
                   {order.email} / {order.phone}
                 </p>
               </div>
-              <StatusPill tone={order.status === "rejected" ? "bad" : order.status === "completed" ? "good" : "warn"}>
+              <StatusPill
+                tone={
+                  order.status === "rejected"
+                    ? "bad"
+                    : order.status === "completed"
+                      ? "good"
+                      : "warn"
+                }
+              >
                 {order.status}
               </StatusPill>
             </div>
@@ -1609,7 +1902,10 @@ function CustomOrdersPanel({ orders, busy, run }: { orders: CustomOrderRow[]; bu
                 onChange={(event) => {
                   const status = event.currentTarget.value as Enums<"custom_order_status">;
                   run(`custom-${order.id}`, "Custom order updated.", async () => {
-                    const { error } = await supabase.from("custom_orders").update({ status }).eq("id", order.id);
+                    const { error } = await supabase
+                      .from("custom_orders")
+                      .update({ status })
+                      .eq("id", order.id);
                     if (error) throw error;
                   });
                 }}
@@ -1627,7 +1923,10 @@ function CustomOrdersPanel({ orders, busy, run }: { orders: CustomOrderRow[]; bu
                 onClick={() => {
                   if (!confirm(`Delete custom order from ${order.full_name}?`)) return;
                   run(`custom-delete-${order.id}`, "Custom order deleted.", async () => {
-                    const { error } = await supabase.from("custom_orders").delete().eq("id", order.id);
+                    const { error } = await supabase
+                      .from("custom_orders")
+                      .delete()
+                      .eq("id", order.id);
                     if (error) throw error;
                   });
                 }}
@@ -1659,7 +1958,10 @@ function BlogPanel({
 
   return (
     <div className="space-y-6">
-      <PanelTitle title="Blog content" description="Create, edit, publish, unpublish and delete blog posts." />
+      <PanelTitle
+        title="Blog content"
+        description="Create, edit, publish, unpublish and delete blog posts."
+      />
       <form onSubmit={addBlogPost} className="rounded-md border border-ink/10 bg-card p-4">
         <div className="grid gap-4 lg:grid-cols-3">
           <Field label="Title">
@@ -1709,7 +2011,9 @@ function BlogPanel({
                   {post.is_published ? "Published" : "Draft"}
                 </StatusPill>
               </div>
-              <p className="mt-3 line-clamp-2 text-sm">{post.excerpt || post.body || "No excerpt yet."}</p>
+              <p className="mt-3 line-clamp-2 text-sm">
+                {post.excerpt || post.body || "No excerpt yet."}
+              </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <ActionButton onClick={() => setEditing(isEditing ? null : post.id)}>
                   {isEditing ? <X className="size-4" /> : <Edit3 className="size-4" />}
@@ -1736,7 +2040,10 @@ function BlogPanel({
                   onClick={() => {
                     if (!confirm(`Delete ${post.title}?`)) return;
                     run(`post-delete-${post.id}`, "Post deleted.", async () => {
-                      const { error } = await supabase.from("blog_posts").delete().eq("id", post.id);
+                      const { error } = await supabase
+                        .from("blog_posts")
+                        .delete()
+                        .eq("id", post.id);
                       if (error) throw error;
                     });
                   }}
@@ -1767,7 +2074,9 @@ function BlogEditForm({ post, busy, run }: { post: BlogRow; busy: string | null;
     }
     run(`post-save-${post.id}`, "Post saved.", async () => {
       const coverFile = getFormFile(fd, "cover_file");
-      const coverUrl = coverFile ? await uploadStoreImage(coverFile, `blog/${post.id}`) : post.cover_url;
+      const coverUrl = coverFile
+        ? await uploadStoreImage(coverFile, `blog/${post.id}`)
+        : post.cover_url;
       const { error } = await supabase
         .from("blog_posts")
         .update({
@@ -1879,7 +2188,10 @@ function MessagesPanel({
                   onClick={() => {
                     if (!confirm("Delete this message?")) return;
                     run(`message-delete-${message.id}`, "Message deleted.", async () => {
-                      const { error } = await supabase.from("support_messages").delete().eq("id", message.id);
+                      const { error } = await supabase
+                        .from("support_messages")
+                        .delete()
+                        .eq("id", message.id);
                       if (error) throw error;
                     });
                   }}
@@ -1897,7 +2209,10 @@ function MessagesPanel({
           <p className="mt-1 text-sm text-muted-warm">{subscribers.length} subscriber(s)</p>
           <div className="mt-4 space-y-2">
             {subscribers.map((subscriber) => (
-              <div key={subscriber.id} className="flex items-center justify-between gap-3 border-b border-ink/5 pb-2">
+              <div
+                key={subscriber.id}
+                className="flex items-center justify-between gap-3 border-b border-ink/5 pb-2"
+              >
                 <span className="min-w-0 truncate text-sm">{subscriber.email}</span>
                 <IconButton
                   label="Delete subscriber"
@@ -1943,20 +2258,35 @@ function SettingsPanel({
         title="Store settings"
         description="Update reusable store settings saved in the site_settings table."
       />
-      <form onSubmit={saveSettings} className="max-w-5xl rounded-md border border-ink/10 bg-card p-4">
+      <form
+        onSubmit={saveSettings}
+        className="max-w-5xl rounded-md border border-ink/10 bg-card p-4"
+      >
         <Field label="Announcement">
-          <input name="announcement" defaultValue={stringSetting(settings.announcement)} className={input} />
+          <input
+            name="announcement"
+            defaultValue={stringSetting(settings.announcement)}
+            className={input}
+          />
         </Field>
         <Field label="Announcement image">
           <input name="announcement_image" type="file" accept="image/*" className={fileInput} />
           {announcementImageUrl && (
             <div className="mt-3 overflow-hidden rounded-md border border-ink/10">
-              <img src={announcementImageUrl} alt="Current announcement" className="h-40 w-full object-cover" />
+              <img
+                src={announcementImageUrl}
+                alt="Current announcement"
+                className="h-40 w-full object-cover"
+              />
             </div>
           )}
         </Field>
         <Field label="WhatsApp number or link">
-          <input name="whatsapp" defaultValue={stringSetting(settings.whatsapp)} className={input} />
+          <input
+            name="whatsapp"
+            defaultValue={stringSetting(settings.whatsapp)}
+            className={input}
+          />
         </Field>
         <Field label="Default delivery fee">
           <input
@@ -2000,7 +2330,11 @@ function SettingsPanel({
           disabled={busy === "settings-save"}
           className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-4 text-sm font-bold text-canvas disabled:opacity-60"
         >
-          {busy === "settings-save" ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+          {busy === "settings-save" ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Save className="size-4" />
+          )}
           Save settings
         </button>
       </form>
@@ -2105,7 +2439,12 @@ function CheckField({
 }) {
   return (
     <label className="inline-flex min-h-11 items-center gap-2 rounded-md border border-ink/10 bg-canvas px-3 text-sm font-semibold">
-      <input name={name} type="checkbox" defaultChecked={defaultChecked} className="size-4 accent-ink" />
+      <input
+        name={name}
+        type="checkbox"
+        defaultChecked={defaultChecked}
+        className="size-4 accent-ink"
+      />
       {title}
     </label>
   );
@@ -2181,7 +2520,9 @@ function StatusPill({
     muted: "border-ink/10 bg-secondary text-muted-warm",
   };
   return (
-    <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${colors[tone]}`}>
+    <span
+      className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${colors[tone]}`}
+    >
       {children}
     </span>
   );
@@ -2238,7 +2579,12 @@ async function uploadStoreImage(file: File, folder: string) {
     throw new Error("Images must be 8MB or smaller.");
   }
 
-  const ext = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const ext =
+    file.name
+      .split(".")
+      .pop()
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]/g, "") || "jpg";
   const safeFolder = folder.replace(/^\/+|\/+$/g, "").replace(/[^a-zA-Z0-9/_-]/g, "-");
   const path = `${safeFolder}/${Date.now()}-${randomId()}.${ext}`;
   const { error } = await supabase.storage.from(STORE_IMAGE_BUCKET).upload(path, file, {
@@ -2253,7 +2599,9 @@ async function uploadStoreImage(file: File, folder: string) {
 
 function objectSettings(value: Json | undefined): Record<string, Json> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, Json] => entry[1] !== undefined));
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, Json] => entry[1] !== undefined),
+  );
 }
 
 function stringSetting(value: Json | undefined) {
