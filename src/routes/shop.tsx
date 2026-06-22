@@ -1,12 +1,35 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { SiteShell } from "@/components/layout/SiteShell";
 import { ProductCard } from "@/components/ProductCard";
 import { productsQuery, collectionsQuery, categoriesQuery } from "@/lib/catalog";
+import {
+  fabricsCategory,
+  isPresetShopCategory,
+  shopMenuSections,
+  sortShopCategories,
+} from "@/lib/navigation";
+
+type ShopSearch = {
+  q?: string;
+  category?: string;
+  collection?: string;
+  sort?: string;
+};
+
+function stringSearch(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
 
 export const Route = createFileRoute("/shop")({
+  validateSearch: (search: Record<string, unknown>): ShopSearch => ({
+    q: stringSearch(search.q),
+    category: stringSearch(search.category),
+    collection: stringSearch(search.collection),
+    sort: stringSearch(search.sort),
+  }),
   head: () => ({
     meta: [
       { title: "Shop — EL STYLE HOUSE" },
@@ -21,10 +44,11 @@ export const Route = createFileRoute("/shop")({
 const PAGE_SIZE = 8;
 
 function ShopPage() {
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("");
-  const [collection, setCollection] = useState("");
-  const [sort, setSort] = useState("newest");
+  const routeSearch = Route.useSearch();
+  const [search, setSearch] = useState(routeSearch.q ?? "");
+  const [category, setCategory] = useState(routeSearch.category ?? "");
+  const [collection, setCollection] = useState(routeSearch.collection ?? "");
+  const [sort, setSort] = useState(routeSearch.sort ?? "newest");
   const [page, setPage] = useState(1);
 
   const { data: products = [], isLoading } = useQuery(
@@ -32,6 +56,19 @@ function ShopPage() {
   );
   const { data: collections = [] } = useQuery(collectionsQuery());
   const { data: categories = [] } = useQuery(categoriesQuery());
+  const sortedCategories = useMemo(() => sortShopCategories(categories), [categories]);
+  const customCategories = useMemo(
+    () => sortedCategories.filter((c) => !isPresetShopCategory(c.slug)),
+    [sortedCategories],
+  );
+
+  useEffect(() => {
+    setSearch(routeSearch.q ?? "");
+    setCategory(routeSearch.category ?? "");
+    setCollection(routeSearch.collection ?? "");
+    setSort(routeSearch.sort ?? "newest");
+    setPage(1);
+  }, [routeSearch.q, routeSearch.category, routeSearch.collection, routeSearch.sort]);
 
   const pageCount = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
   const paged = useMemo(
@@ -65,7 +102,25 @@ function ShopPage() {
           <div className="flex flex-wrap gap-3">
             <select value={category} onChange={(e) => reset(() => setCategory(e.target.value))} className="rounded-full border border-ink/15 bg-card px-4 py-2.5 text-sm outline-none">
               <option value="">All Categories</option>
-              {categories.map((c) => <option key={c.id} value={c.slug}>{c.name}</option>)}
+              {shopMenuSections.map((section) => (
+                <optgroup key={section.label} label={section.label}>
+                  {section.items.map((item) => (
+                    <option key={item.slug} value={item.slug}>
+                      {item.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+              <option value={fabricsCategory.slug}>{fabricsCategory.label}</option>
+              {customCategories.length > 0 && (
+                <optgroup label="Other">
+                  {customCategories.map((c) => (
+                    <option key={c.id} value={c.slug}>
+                      {c.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
             <select value={collection} onChange={(e) => reset(() => setCollection(e.target.value))} className="rounded-full border border-ink/15 bg-card px-4 py-2.5 text-sm outline-none">
               <option value="">All Collections</option>
