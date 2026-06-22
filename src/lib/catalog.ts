@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { childCategorySlugsFor } from "@/lib/navigation";
 import type { Tables } from "@/integrations/supabase/types";
 
 export type Product = Tables<"products"> & {
@@ -33,8 +34,23 @@ export async function fetchProducts(filters: ProductFilters = {}): Promise<Produ
   const { data, error } = await q;
   if (error) throw error;
   let rows = (data ?? []) as Product[];
-  if (filters.category) rows = rows.filter((p) => p.categories?.slug === filters.category);
-  if (filters.collection) rows = rows.filter((p) => p.collections?.slug === filters.collection);
+  if (filters.category) {
+    const childCategorySlugs = childCategorySlugsFor(filters.category);
+    rows = rows.filter((p) => {
+      const productCategory = p.categories?.slug;
+      return (
+        productCategory === filters.category ||
+        (productCategory ? childCategorySlugs.includes(productCategory) : false)
+      );
+    });
+  }
+  if (filters.collection) {
+    rows = rows.filter(
+      (p) =>
+        p.collections?.slug === filters.collection ||
+        p.categories?.slug === filters.collection,
+    );
+  }
   return rows;
 }
 
