@@ -8,7 +8,7 @@ export const shopMenuSections = [
       { label: "Shoes", slug: "ladies-shoes" },
       { label: "Jewelry", slug: "ladies-jewelry" },
       { label: "Hair", slug: "ladies-hair" },
-      { label: "As A Set", slug: "ladies-as-a-set" },
+      { label: "ESH LUXE SETS", slug: "ladies-as-a-set" },
     ],
   },
   {
