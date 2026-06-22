@@ -5,7 +5,8 @@ import { Reveal } from "@/components/Reveal";
 import { Testimonials } from "@/components/sections/Testimonials";
 import { ProductCard } from "@/components/ProductCard";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
-import { productsQuery, collectionsQuery } from "@/lib/catalog";
+import { collectionsQuery, primaryImage, productsQuery } from "@/lib/catalog";
+import { shopCollectionPresets } from "@/lib/navigation";
 import heroImg from "@/assets/hero.jpg";
 
 export const Route = createFileRoute("/")({
@@ -41,6 +42,25 @@ function Index() {
   const { data: collections = [] } = useQuery(collectionsQuery());
   const bestSellers = featured.filter((p) => p.is_best_seller).slice(0, 4);
   const newArrivals = featured.filter((p) => p.is_new_arrival).slice(0, 4);
+  const collectionBySlug = new Map(collections.map((collection) => [collection.slug, collection]));
+  const oldestProducts = [...featured].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+  const featuredCollectionCards = shopCollectionPresets
+    .map((collection) => {
+      const savedCollection = collectionBySlug.get(collection.slug);
+      const firstProduct = oldestProducts.find(
+        (product) =>
+          product.collections?.slug === collection.slug ||
+          product.categories?.slug === collection.slug,
+      );
+      const image = firstProduct ? primaryImage(firstProduct) : savedCollection?.image_url;
+      return image ? { ...collection, image } : null;
+    })
+    .filter(
+      (collection): collection is (typeof shopCollectionPresets)[number] & { image: string } =>
+        Boolean(collection),
+    );
 
   return (
     <SiteShell>
@@ -51,7 +71,7 @@ function Index() {
         <div className="relative z-10 w-full text-canvas">
           <p className="mb-4 text-[11px] uppercase tracking-[0.4em] text-canvas/80">EL STYLE HOUSE</p>
           <h1 className="mb-6 max-w-[18ch] text-balance font-serif text-5xl font-medium leading-tight md:text-7xl">
-            Couture for the Celebrated Woman
+            SHOP YOUR STYLE
           </h1>
           <p className="mb-8 max-w-[44ch] text-pretty text-base text-canvas/90">
             Bridal, lace, event and aso-ebi pieces designed to make every moment unforgettable.
@@ -68,23 +88,40 @@ function Index() {
       </section>
 
       {/* Featured collections */}
-      <section className="mx-auto max-w-[1600px] px-6 py-20 md:px-12 md:py-28">
-        <Reveal className="mb-12 flex items-end justify-between">
-          <h2 className="font-serif text-4xl font-medium md:text-5xl">Featured Collections</h2>
-          <Link to="/collections" className="text-xs uppercase tracking-[0.3em] text-muted-warm hover:text-ink">
-            View all
-          </Link>
-        </Reveal>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {collections.slice(0, 3).map((c) => (
-            <Link key={c.id} to="/collections/$slug" params={{ slug: c.slug }} className="group relative overflow-hidden rounded-[10px]">
-              <img src={c.image_url ?? heroImg} alt={c.name} loading="lazy" className="aspect-[3/4] w-full object-cover transition-transform duration-700 group-hover:scale-105" />
-              <div className="absolute inset-0 bg-gradient-to-t from-ink/70 to-transparent" />
-              <h3 className="absolute bottom-5 left-5 font-serif text-2xl text-canvas">{c.name}</h3>
+      {featuredCollectionCards.length > 0 && (
+        <section className="mx-auto max-w-[1600px] px-6 py-20 md:px-12 md:py-28">
+          <Reveal className="mb-12 flex items-end justify-between">
+            <h2 className="font-serif text-4xl font-medium md:text-5xl">Featured Collections</h2>
+            <Link to="/collections" className="text-xs uppercase tracking-[0.3em] text-muted-warm hover:text-ink">
+              View all
             </Link>
-          ))}
-        </div>
-      </section>
+          </Reveal>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {featuredCollectionCards.map((collection) => (
+              <Link
+                key={collection.slug}
+                to="/shop"
+                search={{ category: collection.category.slug, collection: collection.slug }}
+                className="group relative overflow-hidden rounded-[10px]"
+              >
+                <img
+                  src={collection.image}
+                  alt={collection.label}
+                  loading="lazy"
+                  className="aspect-[3/4] w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-ink/70 to-transparent" />
+                <div className="absolute bottom-5 left-5 right-5">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-canvas/75">
+                    {collection.category.label}
+                  </p>
+                  <h3 className="font-serif text-2xl text-canvas">{collection.label}</h3>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Best sellers */}
       {bestSellers.length > 0 && (
