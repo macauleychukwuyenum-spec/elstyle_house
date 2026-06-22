@@ -1,16 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { site } from "@/lib/site";
-import { fabricsCategory, shopMenuSections } from "@/lib/navigation";
+import { shopCategories } from "@/lib/navigation";
 
 const shop = [
-  ...shopMenuSections.flatMap((section) =>
-    section.items.map((item) => ({
-      label: `${section.label} - ${item.label}`,
-      to: "/shop",
-      search: { category: item.slug },
-    })),
-  ),
-  { label: "Fabrics", to: "/shop", search: { category: fabricsCategory.slug } },
+  ...shopCategories.map((category) => ({
+    label: category.label,
+    to: "/shop",
+    search: { category: category.slug },
+  })),
   { label: "Collections", to: "/collections" },
 ] as const;
 
@@ -80,3 +77,4 @@ function FooterCol({
     </div>
   );
 }
+
