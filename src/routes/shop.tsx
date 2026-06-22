@@ -4,10 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { SiteShell } from "@/components/layout/SiteShell";
 import { ProductCard } from "@/components/ProductCard";
-import { productsQuery, collectionsQuery, categoriesQuery } from "@/lib/catalog";
+import { productsQuery, categoriesQuery } from "@/lib/catalog";
 import {
   fabricsCategory,
   isPresetShopCategory,
+  isPresetShopCollection,
+  shopCategories,
   shopMenuSections,
   sortShopCategories,
 } from "@/lib/navigation";
@@ -50,22 +52,34 @@ function ShopPage() {
   const [collection, setCollection] = useState(routeSearch.collection ?? "");
   const [sort, setSort] = useState(routeSearch.sort ?? "newest");
   const [page, setPage] = useState(1);
+  const effectiveCollection =
+    !category || category === fabricsCategory.slug ? "" : collection;
 
   const { data: products = [], isLoading } = useQuery(
-    productsQuery({ search, category, collection, sort }),
+    productsQuery({ search, category, collection: effectiveCollection, sort }),
   );
-  const { data: collections = [] } = useQuery(collectionsQuery());
   const { data: categories = [] } = useQuery(categoriesQuery());
   const sortedCategories = useMemo(() => sortShopCategories(categories), [categories]);
   const customCategories = useMemo(
-    () => sortedCategories.filter((c) => !isPresetShopCategory(c.slug)),
+    () =>
+      sortedCategories.filter(
+        (c) => !isPresetShopCategory(c.slug) && !isPresetShopCollection(c.slug),
+      ),
     [sortedCategories],
   );
+  const selectedSection = shopMenuSections.find(
+    (section) => section.category.slug === category,
+  );
+  const collectionOptions = selectedSection?.items ?? [];
 
   useEffect(() => {
     setSearch(routeSearch.q ?? "");
     setCategory(routeSearch.category ?? "");
-    setCollection(routeSearch.collection ?? "");
+    setCollection(
+      !routeSearch.category || routeSearch.category === fabricsCategory.slug
+        ? ""
+        : routeSearch.collection ?? "",
+    );
     setSort(routeSearch.sort ?? "newest");
     setPage(1);
   }, [routeSearch.q, routeSearch.category, routeSearch.collection, routeSearch.sort]);
@@ -100,18 +114,22 @@ function ShopPage() {
             />
           </div>
           <div className="flex flex-wrap gap-3">
-            <select value={category} onChange={(e) => reset(() => setCategory(e.target.value))} className="rounded-full border border-ink/15 bg-card px-4 py-2.5 text-sm outline-none">
+            <select
+              value={category}
+              onChange={(e) =>
+                reset(() => {
+                  setCategory(e.target.value);
+                  setCollection("");
+                })
+              }
+              className="rounded-full border border-ink/15 bg-card px-4 py-2.5 text-sm outline-none"
+            >
               <option value="">All Categories</option>
-              {shopMenuSections.map((section) => (
-                <optgroup key={section.label} label={section.label}>
-                  {section.items.map((item) => (
-                    <option key={item.slug} value={item.slug}>
-                      {item.label}
-                    </option>
-                  ))}
-                </optgroup>
+              {shopCategories.map((item) => (
+                <option key={item.slug} value={item.slug}>
+                  {item.label}
+                </option>
               ))}
-              <option value={fabricsCategory.slug}>{fabricsCategory.label}</option>
               {customCategories.length > 0 && (
                 <optgroup label="Other">
                   {customCategories.map((c) => (
@@ -122,9 +140,25 @@ function ShopPage() {
                 </optgroup>
               )}
             </select>
-            <select value={collection} onChange={(e) => reset(() => setCollection(e.target.value))} className="rounded-full border border-ink/15 bg-card px-4 py-2.5 text-sm outline-none">
-              <option value="">All Collections</option>
-              {collections.map((c) => <option key={c.id} value={c.slug}>{c.name}</option>)}
+            <select
+              value={collection}
+              onChange={(e) => reset(() => setCollection(e.target.value))}
+              disabled={!category || category === fabricsCategory.slug}
+              className="rounded-full border border-ink/15 bg-card px-4 py-2.5 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">
+                {!category
+                  ? "Choose a Category First"
+                  : category === fabricsCategory.slug
+                    ? "No Collections Yet"
+                    : "All Collections"}
+              </option>
+              {category &&
+                collectionOptions.map((item) => (
+                  <option key={item.slug} value={item.slug}>
+                    {item.label}
+                  </option>
+                ))}
             </select>
             <select value={sort} onChange={(e) => setSort(e.target.value)} className="rounded-full border border-ink/15 bg-card px-4 py-2.5 text-sm outline-none">
               <option value="newest">Newest</option>
