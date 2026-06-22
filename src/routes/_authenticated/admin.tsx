@@ -26,10 +26,14 @@ import type { Enums, Json, Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { formatNaira } from "@/lib/format";
 import {
-  fabricsCategory,
   isPresetShopCategory,
+  isPresetShopCollection,
+  parentCategorySlugFor,
+  shopCategories,
   shopCategoryAdminLabel,
   shopCategoryPresets,
+  shopCollectionAdminLabel,
+  shopCollectionPresets,
   shopMenuSections,
   sortShopCategories,
 } from "@/lib/navigation";
@@ -861,10 +865,28 @@ function ProductsPanel({
     () => new Map(categories.map((category) => [category.slug, category])),
     [categories],
   );
+  const collectionBySlug = useMemo(
+    () => new Map(collections.map((collection) => [collection.slug, collection])),
+    [collections],
+  );
   const customCategories = useMemo(
-    () => categories.filter((category) => !isPresetShopCategory(category.slug)),
+    () =>
+      categories.filter(
+        (category) =>
+          !isPresetShopCategory(category.slug) && !isPresetShopCollection(category.slug),
+      ),
     [categories],
   );
+  const customCollections = useMemo(
+    () => collections.filter((collection) => !isPresetShopCollection(collection.slug)),
+    [collections],
+  );
+  const effectiveCategoryId =
+    categoryBySlug.get(parentCategorySlugFor(product.categories?.slug) ?? "")?.id ??
+    product.category_id ??
+    "";
+  const effectiveCollectionId =
+    product.collection_id ?? collectionBySlug.get(product.categories?.slug ?? "")?.id ?? "";
 
   return (
     <div className="space-y-6">
@@ -892,26 +914,15 @@ function ProductsPanel({
           <Field label="Category">
             <select name="category_id" className={input}>
               <option value="">No category</option>
-              {shopMenuSections.map((section) => (
-                <optgroup key={section.label} label={section.label}>
-                  {section.items.map((item) => {
-                    const category = categoryBySlug.get(item.slug);
-                    return (
-                      <option key={item.slug} value={category?.id ?? item.slug} disabled={!category}>
-                        {item.label}
-                        {category ? "" : " (add in Catalog)"}
-                      </option>
-                    );
-                  })}
-                </optgroup>
-              ))}
-              <option
-                value={categoryBySlug.get(fabricsCategory.slug)?.id ?? fabricsCategory.slug}
-                disabled={!categoryBySlug.has(fabricsCategory.slug)}
-              >
-                {fabricsCategory.label}
-                {categoryBySlug.has(fabricsCategory.slug) ? "" : " (add in Catalog)"}
-              </option>
+              {shopCategories.map((item) => {
+                const category = categoryBySlug.get(item.slug);
+                return (
+                  <option key={item.slug} value={category?.id ?? item.slug} disabled={!category}>
+                    {item.label}
+                    {category ? "" : " (add in Catalog)"}
+                  </option>
+                );
+              })}
               {customCategories.length > 0 && (
                 <optgroup label="Other">
                   {customCategories.map((category) => (
@@ -926,11 +937,32 @@ function ProductsPanel({
           <Field label="Collection">
             <select name="collection_id" className={input}>
               <option value="">No collection</option>
-              {collections.map((collection) => (
-                <option key={collection.id} value={collection.id}>
-                  {collection.name}
-                </option>
+              {shopMenuSections.map((section) => (
+                <optgroup key={section.label} label={section.category.label}>
+                  {section.items.map((item) => {
+                    const collection = collectionBySlug.get(item.slug);
+                    return (
+                      <option
+                        key={item.slug}
+                        value={collection?.id ?? item.slug}
+                        disabled={!collection}
+                      >
+                        {item.label}
+                        {collection ? "" : " (add in Catalog)"}
+                      </option>
+                    );
+                  })}
+                </optgroup>
               ))}
+              {customCollections.length > 0 && (
+                <optgroup label="Other">
+                  {customCollections.map((collection) => (
+                    <option key={collection.id} value={collection.id}>
+                      {collection.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </Field>
           <Field label="Primary image">
@@ -1066,9 +1098,21 @@ function ProductEditForm({
     () => new Map(categories.map((category) => [category.slug, category])),
     [categories],
   );
+  const collectionBySlug = useMemo(
+    () => new Map(collections.map((collection) => [collection.slug, collection])),
+    [collections],
+  );
   const customCategories = useMemo(
-    () => categories.filter((category) => !isPresetShopCategory(category.slug)),
+    () =>
+      categories.filter(
+        (category) =>
+          !isPresetShopCategory(category.slug) && !isPresetShopCollection(category.slug),
+      ),
     [categories],
+  );
+  const customCollections = useMemo(
+    () => collections.filter((collection) => !isPresetShopCollection(collection.slug)),
+    [collections],
   );
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -1146,28 +1190,17 @@ function ProductEditForm({
           />
         </Field>
         <Field label="Category">
-          <select name="category_id" defaultValue={product.category_id ?? ""} className={input}>
+          <select name="category_id" defaultValue={effectiveCategoryId} className={input}>
             <option value="">No category</option>
-            {shopMenuSections.map((section) => (
-              <optgroup key={section.label} label={section.label}>
-                {section.items.map((item) => {
-                  const category = categoryBySlug.get(item.slug);
-                  return (
-                    <option key={item.slug} value={category?.id ?? item.slug} disabled={!category}>
-                      {item.label}
-                      {category ? "" : " (add in Catalog)"}
-                    </option>
-                  );
-                })}
-              </optgroup>
-            ))}
-            <option
-              value={categoryBySlug.get(fabricsCategory.slug)?.id ?? fabricsCategory.slug}
-              disabled={!categoryBySlug.has(fabricsCategory.slug)}
-            >
-              {fabricsCategory.label}
-              {categoryBySlug.has(fabricsCategory.slug) ? "" : " (add in Catalog)"}
-            </option>
+            {shopCategories.map((item) => {
+              const category = categoryBySlug.get(item.slug);
+              return (
+                <option key={item.slug} value={category?.id ?? item.slug} disabled={!category}>
+                  {item.label}
+                  {category ? "" : " (add in Catalog)"}
+                </option>
+              );
+            })}
             {customCategories.length > 0 && (
               <optgroup label="Other">
                 {customCategories.map((category) => (
@@ -1180,13 +1213,34 @@ function ProductEditForm({
           </select>
         </Field>
         <Field label="Collection">
-          <select name="collection_id" defaultValue={product.collection_id ?? ""} className={input}>
+          <select name="collection_id" defaultValue={effectiveCollectionId} className={input}>
             <option value="">No collection</option>
-            {collections.map((collection) => (
-              <option key={collection.id} value={collection.id}>
-                {collection.name}
-              </option>
+            {shopMenuSections.map((section) => (
+              <optgroup key={section.label} label={section.category.label}>
+                {section.items.map((item) => {
+                  const collection = collectionBySlug.get(item.slug);
+                  return (
+                    <option
+                      key={item.slug}
+                      value={collection?.id ?? item.slug}
+                      disabled={!collection}
+                    >
+                      {item.label}
+                      {collection ? "" : " (add in Catalog)"}
+                    </option>
+                  );
+                })}
+              </optgroup>
             ))}
+            {customCollections.length > 0 && (
+              <optgroup label="Other">
+                {customCollections.map((collection) => (
+                  <option key={collection.id} value={collection.id}>
+                    {collection.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </Field>
       </div>
@@ -1404,9 +1458,17 @@ function CatalogPanel({
     () => new Set(categories.map((category) => category.slug)),
     [categories],
   );
+  const collectionSlugs = useMemo(
+    () => new Set(collections.map((collection) => collection.slug)),
+    [collections],
+  );
   const missingPresetCategories = useMemo(
     () => shopCategoryPresets.filter((category) => !categorySlugs.has(category.slug)),
     [categorySlugs],
+  );
+  const missingPresetCollections = useMemo(
+    () => shopCollectionPresets.filter((collection) => !collectionSlugs.has(collection.slug)),
+    [collectionSlugs],
   );
 
   return (
@@ -1506,6 +1568,41 @@ function CatalogPanel({
               Add collection
             </button>
           </form>
+          {missingPresetCollections.length > 0 && (
+            <div className="mt-4 rounded-md border border-ink/10 bg-canvas p-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-warm">
+                Menu collections to add
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {missingPresetCollections.map((collection) => (
+                  <button
+                    key={collection.slug}
+                    type="button"
+                    disabled={busy === `collection-preset-${collection.slug}`}
+                    onClick={() =>
+                      run(
+                        `collection-preset-${collection.slug}`,
+                        "Menu collection added.",
+                        async () => {
+                          const { error } = await supabase.from("collections").insert({
+                            name: shopCollectionAdminLabel(collection.slug, collection.label),
+                            slug: collection.slug,
+                            sort_order: shopCollectionPresets.findIndex(
+                              (item) => item.slug === collection.slug,
+                            ),
+                          });
+                          if (error) throw error;
+                        },
+                      )
+                    }
+                    className="min-h-10 rounded-md border border-ink/15 px-3 text-xs font-semibold transition hover:bg-secondary disabled:opacity-60"
+                  >
+                    Add {shopCollectionAdminLabel(collection.slug, collection.label)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="mt-4 space-y-2">
             {collections.map((collection) => (
               <CatalogRow
