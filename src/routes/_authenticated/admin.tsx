@@ -881,13 +881,6 @@ function ProductsPanel({
     () => collections.filter((collection) => !isPresetShopCollection(collection.slug)),
     [collections],
   );
-  const effectiveCategoryId =
-    categoryBySlug.get(parentCategorySlugFor(product.categories?.slug) ?? "")?.id ??
-    product.category_id ??
-    "";
-  const effectiveCollectionId =
-    product.collection_id ?? collectionBySlug.get(product.categories?.slug ?? "")?.id ?? "";
-
   return (
     <div className="space-y-6">
       <PanelTitle
@@ -1114,6 +1107,12 @@ function ProductEditForm({
     () => collections.filter((collection) => !isPresetShopCollection(collection.slug)),
     [collections],
   );
+  const effectiveCategoryId =
+    categoryBySlug.get(parentCategorySlugFor(product.categories?.slug) ?? "")?.id ??
+    product.category_id ??
+    "";
+  const effectiveCollectionId =
+    product.collection_id ?? collectionBySlug.get(product.categories?.slug ?? "")?.id ?? "";
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
