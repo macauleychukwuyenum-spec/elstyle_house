@@ -71,7 +71,7 @@ export function SiteHeader() {
                       <Link
                         key={item.slug}
                         to="/shop"
-                        search={{ category: item.slug }}
+                        search={{ category: section.category.slug, collection: item.slug }}
                         onClick={() => setActiveDropdown(null)}
                         className="block rounded-md px-3 py-2 tracking-[0.16em] opacity-70 transition hover:bg-secondary hover:opacity-100"
                       >
@@ -165,7 +165,7 @@ export function SiteHeader() {
                       <Link
                         key={item.slug}
                         to="/shop"
-                        search={{ category: item.slug }}
+                        search={{ category: section.category.slug, collection: item.slug }}
                         onClick={closeMenus}
                       >
                         {item.label}
