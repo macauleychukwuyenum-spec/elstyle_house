@@ -1,16 +1,24 @@
 import { Link } from "@tanstack/react-router";
 import { site } from "@/lib/site";
+import { fabricsCategory, shopMenuSections } from "@/lib/navigation";
 
 const shop = [
-  { label: "Shop All", to: "/shop" },
+  ...shopMenuSections.flatMap((section) =>
+    section.items.map((item) => ({
+      label: `${section.label} - ${item.label}`,
+      to: "/shop",
+      search: { category: item.slug },
+    })),
+  ),
+  { label: "Fabrics", to: "/shop", search: { category: fabricsCategory.slug } },
   { label: "Collections", to: "/collections" },
-  { label: "Custom Orders", to: "/custom-orders" },
 ] as const;
 
 const company = [
+  { label: "Home", to: "/" },
   { label: "About", to: "/about" },
-  { label: "Blog", to: "/blog" },
   { label: "Contact", to: "/contact" },
+  { label: "Login / Register", to: "/auth" },
 ] as const;
 
 const policies = [
@@ -51,15 +59,19 @@ function FooterCol({
   items,
 }: {
   title: string;
-  items: readonly { label: string; to: string }[];
+  items: readonly { label: string; to: string; search?: { category: string } }[];
 }) {
   return (
     <div>
       <h4 className="mb-4 text-[11px] uppercase tracking-[0.3em] text-canvas/50">{title}</h4>
       <ul className="space-y-3 text-sm text-canvas/80">
         {items.map((i) => (
-          <li key={i.to}>
-            <Link to={i.to} className="transition-colors hover:text-canvas">
+          <li key={`${i.to}-${i.label}`}>
+            <Link
+              to={i.to}
+              search={i.search}
+              className="transition-colors hover:text-canvas"
+            >
               {i.label}
             </Link>
           </li>
