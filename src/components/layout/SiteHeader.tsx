@@ -17,7 +17,17 @@ const trailingLinks = links.slice(2);
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const { user } = useAuth();
+
+  const toggleDropdown = (label: string) => {
+    setActiveDropdown((current) => (current === label ? null : label));
+  };
+
+  const closeMenus = () => {
+    setOpen(false);
+    setActiveDropdown(null);
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-ink/10 bg-canvas/90 text-ink backdrop-blur-md">
@@ -32,6 +42,7 @@ export function SiteHeader() {
               key={l.label}
               to={l.to}
               search={"search" in l ? l.search : undefined}
+              onClick={() => setActiveDropdown(null)}
               activeProps={{ className: "opacity-100" }}
               className="opacity-70 transition-opacity hover:opacity-100"
             >
@@ -39,28 +50,37 @@ export function SiteHeader() {
             </Link>
           ))}
           {shopMenuSections.map((section) => (
-            <div key={section.label} className="group relative">
+            <div key={section.label} className="relative">
               <button
                 type="button"
-                className="inline-flex min-h-9 items-center gap-1 opacity-70 transition-opacity hover:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
+                aria-expanded={activeDropdown === section.label}
+                onClick={() => toggleDropdown(section.label)}
+                className="inline-flex min-h-9 items-center gap-1 opacity-70 transition-opacity hover:opacity-100 aria-expanded:opacity-100"
               >
                 {section.label}
-                <ChevronDown className="size-3" />
+                <ChevronDown
+                  className={`size-3 transition-transform ${
+                    activeDropdown === section.label ? "rotate-180" : ""
+                  }`}
+                />
               </button>
-              <div className="invisible absolute left-1/2 top-full z-50 w-56 -translate-x-1/2 pt-3 opacity-0 transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
-                <div className="rounded-md border border-ink/10 bg-canvas p-2 text-[11px] shadow-xl">
-                  {section.items.map((item) => (
-                    <Link
-                      key={item.slug}
-                      to="/shop"
-                      search={{ category: item.slug }}
-                      className="block rounded-md px-3 py-2 tracking-[0.16em] opacity-70 transition hover:bg-secondary hover:opacity-100"
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
+              {activeDropdown === section.label && (
+                <div className="absolute left-1/2 top-full z-50 w-56 -translate-x-1/2 pt-3">
+                  <div className="rounded-md border border-ink/10 bg-canvas p-2 text-[11px] shadow-xl">
+                    {section.items.map((item) => (
+                      <Link
+                        key={item.slug}
+                        to="/shop"
+                        search={{ category: item.slug }}
+                        onClick={() => setActiveDropdown(null)}
+                        className="block rounded-md px-3 py-2 tracking-[0.16em] opacity-70 transition hover:bg-secondary hover:opacity-100"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ))}
           {trailingLinks.map((l) => (
@@ -68,6 +88,7 @@ export function SiteHeader() {
               key={l.label}
               to={l.to}
               search={"search" in l ? l.search : undefined}
+              onClick={() => setActiveDropdown(null)}
               activeProps={{ className: "opacity-100" }}
               className="opacity-70 transition-opacity hover:opacity-100"
             >
@@ -76,6 +97,7 @@ export function SiteHeader() {
           ))}
           <Link
             to={user ? "/account" : "/auth"}
+            onClick={() => setActiveDropdown(null)}
             className="opacity-70 transition-opacity hover:opacity-100"
           >
             {user ? "ACCOUNT" : "LOGIN / REGISTER"}
@@ -96,7 +118,14 @@ export function SiteHeader() {
           >
             <User className="size-5" />
           </Link>
-          <button aria-label="Toggle menu" className="lg:hidden" onClick={() => setOpen((v) => !v)}>
+          <button
+            aria-label="Toggle menu"
+            className="lg:hidden"
+            onClick={() => {
+              setOpen((v) => !v);
+              setActiveDropdown(null);
+            }}
+          >
             {open ? <X className="size-6" /> : <Menu className="size-6" />}
           </button>
         </div>
@@ -110,26 +139,40 @@ export function SiteHeader() {
                 key={l.label}
                 to={l.to}
                 search={"search" in l ? l.search : undefined}
-                onClick={() => setOpen(false)}
+                onClick={closeMenus}
               >
                 {l.label}
               </Link>
             ))}
             {shopMenuSections.map((section) => (
               <div key={section.label} className="space-y-3">
-                <p>{section.label}</p>
-                <div className="flex flex-col gap-3 border-l border-ink/15 pl-4 text-xs tracking-[0.18em] text-muted-warm">
-                  {section.items.map((item) => (
-                    <Link
-                      key={item.slug}
-                      to="/shop"
-                      search={{ category: item.slug }}
-                      onClick={() => setOpen(false)}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
+                <button
+                  type="button"
+                  aria-expanded={activeDropdown === section.label}
+                  onClick={() => toggleDropdown(section.label)}
+                  className="flex w-full items-center justify-between text-left"
+                >
+                  {section.label}
+                  <ChevronDown
+                    className={`size-4 transition-transform ${
+                      activeDropdown === section.label ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                {activeDropdown === section.label && (
+                  <div className="flex flex-col gap-3 border-l border-ink/15 pl-4 text-xs tracking-[0.18em] text-muted-warm">
+                    {section.items.map((item) => (
+                      <Link
+                        key={item.slug}
+                        to="/shop"
+                        search={{ category: item.slug }}
+                        onClick={closeMenus}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             {trailingLinks.map((l) => (
@@ -137,12 +180,12 @@ export function SiteHeader() {
                 key={l.label}
                 to={l.to}
                 search={"search" in l ? l.search : undefined}
-                onClick={() => setOpen(false)}
+                onClick={closeMenus}
               >
                 {l.label}
               </Link>
             ))}
-            <Link to={user ? "/account" : "/auth"} onClick={() => setOpen(false)}>
+            <Link to={user ? "/account" : "/auth"} onClick={closeMenus}>
               {user ? "ACCOUNT" : "LOGIN / REGISTER"}
             </Link>
           </div>
