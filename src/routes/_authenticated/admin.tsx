@@ -125,12 +125,12 @@ const customStatuses: Enums<"custom_order_status">[] = [
 ];
 
 const input =
-  "min-h-11 w-full rounded-md border border-ink/15 bg-canvas px-3 text-sm outline-none transition focus:border-ink disabled:opacity-60";
+  "min-h-11 min-w-0 w-full rounded-md border border-ink/15 bg-canvas px-3 text-sm outline-none transition focus:border-ink disabled:opacity-60";
 const textarea =
-  "min-h-28 w-full rounded-md border border-ink/15 bg-canvas px-3 py-3 text-sm outline-none transition focus:border-ink disabled:opacity-60";
+  "min-h-28 min-w-0 w-full rounded-md border border-ink/15 bg-canvas px-3 py-3 text-sm outline-none transition focus:border-ink disabled:opacity-60";
 const label = "text-[11px] font-bold uppercase tracking-[0.18em] text-muted-warm";
 const fileInput =
-  "block min-h-11 w-full rounded-md border border-ink/15 bg-canvas px-3 py-2 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-ink file:px-4 file:py-2 file:text-sm file:font-bold file:text-canvas";
+  "block min-h-11 min-w-0 w-full rounded-md border border-ink/15 bg-canvas px-3 py-2 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-ink file:px-4 file:py-2 file:text-sm file:font-bold file:text-canvas";
 const STORE_IMAGE_BUCKET = "store-images";
 
 function randomId() {
@@ -845,6 +845,10 @@ function Overview({
   );
 }
 
+function productAdminImage(product: ProductRow) {
+  return [...(product.product_images ?? [])].sort((a, b) => a.sort_order - b.sort_order)[0]?.url;
+}
+
 function ProductsPanel({
   products,
   categories,
@@ -861,8 +865,14 @@ function ProductsPanel({
   run: RunAction;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
+  const [addCategoryId, setAddCategoryId] = useState("");
+  const [addCollectionId, setAddCollectionId] = useState("");
   const categoryBySlug = useMemo(
     () => new Map(categories.map((category) => [category.slug, category])),
+    [categories],
+  );
+  const categoryById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
     [categories],
   );
   const collectionBySlug = useMemo(
@@ -877,9 +887,9 @@ function ProductsPanel({
       ),
     [categories],
   );
-  const customCollections = useMemo(
-    () => collections.filter((collection) => !isPresetShopCollection(collection.slug)),
-    [collections],
+  const selectedAddCategorySlug = categoryById.get(addCategoryId)?.slug;
+  const selectedAddSection = shopMenuSections.find(
+    (section) => section.category.slug === selectedAddCategorySlug,
   );
   return (
     <div className="space-y-6">
@@ -887,7 +897,14 @@ function ProductsPanel({
         title="Products and inventory"
         description="Add products, edit catalogue details, manage images, variants, stock, badges and visibility."
       />
-      <form onSubmit={addProduct} className="rounded-md border border-ink/10 bg-card p-4">
+      <form
+        onSubmit={async (event) => {
+          await addProduct(event);
+          setAddCategoryId("");
+          setAddCollectionId("");
+        }}
+        className="rounded-md border border-ink/10 bg-card p-4"
+      >
         <div className="grid gap-4 lg:grid-cols-4">
           <Field label="Product name">
             <input name="name" className={input} required />
@@ -905,7 +922,15 @@ function ProductsPanel({
             <input name="compare_at_price" type="number" min="0" step="0.01" className={input} />
           </Field>
           <Field label="Category">
-            <select name="category_id" className={input}>
+            <select
+              name="category_id"
+              value={addCategoryId}
+              onChange={(event) => {
+                setAddCategoryId(event.currentTarget.value);
+                setAddCollectionId("");
+              }}
+              className={input}
+            >
               <option value="">No category</option>
               {shopCategories.map((item) => {
                 const category = categoryBySlug.get(item.slug);
@@ -928,34 +953,29 @@ function ProductsPanel({
             </select>
           </Field>
           <Field label="Collection">
-            <select name="collection_id" className={input}>
-              <option value="">No collection</option>
-              {shopMenuSections.map((section) => (
-                <optgroup key={section.label} label={section.category.label}>
-                  {section.items.map((item) => {
-                    const collection = collectionBySlug.get(item.slug);
-                    return (
-                      <option
-                        key={item.slug}
-                        value={collection?.id ?? item.slug}
-                        disabled={!collection}
-                      >
-                        {item.label}
-                        {collection ? "" : " (add in Catalog)"}
-                      </option>
-                    );
-                  })}
-                </optgroup>
-              ))}
-              {customCollections.length > 0 && (
-                <optgroup label="Other">
-                  {customCollections.map((collection) => (
-                    <option key={collection.id} value={collection.id}>
-                      {collection.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
+            <select
+              name="collection_id"
+              value={addCollectionId}
+              disabled={!selectedAddSection}
+              onChange={(event) => setAddCollectionId(event.currentTarget.value)}
+              className={input}
+            >
+              <option value="">
+                {addCategoryId
+                  ? selectedAddSection
+                    ? "No collection"
+                    : "No collections for this category"
+                  : "Choose a category first"}
+              </option>
+              {selectedAddSection?.items.map((item) => {
+                const collection = collectionBySlug.get(item.slug);
+                return (
+                  <option key={item.slug} value={collection?.id ?? item.slug} disabled={!collection}>
+                    {item.label}
+                    {collection ? "" : " (add in Catalog)"}
+                  </option>
+                );
+              })}
             </select>
           </Field>
           <Field label="Primary image">
@@ -986,23 +1006,48 @@ function ProductsPanel({
       <div className="space-y-4">
         {products.map((product) => {
           const isEditing = editing === product.id;
+          const image = productAdminImage(product);
           return (
-            <div key={product.id} className="rounded-md border border-ink/10 bg-card p-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-serif text-2xl font-medium">{product.name}</h3>
-                    <StatusPill tone={product.is_active ? "good" : "muted"}>
-                      {product.is_active ? "Active" : "Hidden"}
-                    </StatusPill>
-                    {product.stock <= 3 && <StatusPill tone="warn">Low stock</StatusPill>}
+            <div
+              key={product.id}
+              className="min-w-0 overflow-hidden rounded-md border border-ink/10 bg-card p-4 shadow-sm"
+            >
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="flex min-w-0 items-start gap-4">
+                  <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-md bg-secondary sm:size-24">
+                    {image ? (
+                      <img src={image} alt={product.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <PackagePlus className="size-7 text-muted-warm" />
+                    )}
                   </div>
-                  <p className="mt-1 text-sm text-muted-warm">
-                    {product.categories?.name ?? "Uncategorized"} /{" "}
-                    {product.collections?.name ?? "No collection"} / {formatNaira(product.price)}
-                  </p>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="min-w-0 break-words font-serif text-xl font-medium leading-tight sm:text-2xl">
+                        {product.name}
+                      </h3>
+                      <StatusPill tone={product.is_active ? "good" : "muted"}>
+                        {product.is_active ? "Active" : "Hidden"}
+                      </StatusPill>
+                      {product.stock <= 3 && <StatusPill tone="warn">Low stock</StatusPill>}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-warm">
+                      <span className="rounded-md bg-canvas px-2 py-1">
+                        {product.categories?.name ?? "Uncategorized"}
+                      </span>
+                      <span className="rounded-md bg-canvas px-2 py-1">
+                        {product.collections?.name ?? "No collection"}
+                      </span>
+                      <span className="rounded-md bg-canvas px-2 py-1">
+                        {formatNaira(product.price)}
+                      </span>
+                      <span className="rounded-md bg-canvas px-2 py-1">
+                        {product.stock} in stock
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex w-full shrink-0 justify-end gap-2 xl:w-auto xl:justify-end">
                   <IconButton
                     label={isEditing ? "Close editor" : "Edit product"}
                     onClick={() => setEditing(isEditing ? null : product.id)}
@@ -1049,7 +1094,7 @@ function ProductsPanel({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+              <div className="mt-4 grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                 <ProductMedia product={product} busy={busy} run={run} />
                 <ProductVariants product={product} busy={busy} run={run} />
               </div>
@@ -1091,6 +1136,10 @@ function ProductEditForm({
     () => new Map(categories.map((category) => [category.slug, category])),
     [categories],
   );
+  const categoryById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
+  );
   const collectionBySlug = useMemo(
     () => new Map(collections.map((collection) => [collection.slug, collection])),
     [collections],
@@ -1103,16 +1152,22 @@ function ProductEditForm({
       ),
     [categories],
   );
-  const customCollections = useMemo(
-    () => collections.filter((collection) => !isPresetShopCollection(collection.slug)),
-    [collections],
-  );
   const effectiveCategoryId =
     categoryBySlug.get(parentCategorySlugFor(product.categories?.slug) ?? "")?.id ??
     product.category_id ??
     "";
   const effectiveCollectionId =
     product.collection_id ?? collectionBySlug.get(product.categories?.slug ?? "")?.id ?? "";
+  const [selectedCategoryId, setSelectedCategoryId] = useState(effectiveCategoryId);
+  const [selectedCollectionId, setSelectedCollectionId] = useState(effectiveCollectionId);
+  const selectedCategorySlug = categoryById.get(selectedCategoryId)?.slug;
+  const selectedSection = shopMenuSections.find(
+    (section) => section.category.slug === selectedCategorySlug,
+  );
+  const selectedCollectionBelongsToSection =
+    selectedSection?.items.some((item) => collectionBySlug.get(item.slug)?.id === selectedCollectionId) ??
+    false;
+  const selectedCollection = collections.find((collection) => collection.id === selectedCollectionId);
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1189,7 +1244,15 @@ function ProductEditForm({
           />
         </Field>
         <Field label="Category">
-          <select name="category_id" defaultValue={effectiveCategoryId} className={input}>
+          <select
+            name="category_id"
+            value={selectedCategoryId}
+            onChange={(event) => {
+              setSelectedCategoryId(event.currentTarget.value);
+              setSelectedCollectionId("");
+            }}
+            className={input}
+          >
             <option value="">No category</option>
             {shopCategories.map((item) => {
               const category = categoryBySlug.get(item.slug);
@@ -1212,34 +1275,34 @@ function ProductEditForm({
           </select>
         </Field>
         <Field label="Collection">
-          <select name="collection_id" defaultValue={effectiveCollectionId} className={input}>
-            <option value="">No collection</option>
-            {shopMenuSections.map((section) => (
-              <optgroup key={section.label} label={section.category.label}>
-                {section.items.map((item) => {
-                  const collection = collectionBySlug.get(item.slug);
-                  return (
-                    <option
-                      key={item.slug}
-                      value={collection?.id ?? item.slug}
-                      disabled={!collection}
-                    >
-                      {item.label}
-                      {collection ? "" : " (add in Catalog)"}
-                    </option>
-                  );
-                })}
-              </optgroup>
-            ))}
-            {customCollections.length > 0 && (
-              <optgroup label="Other">
-                {customCollections.map((collection) => (
-                  <option key={collection.id} value={collection.id}>
-                    {collection.name}
-                  </option>
-                ))}
-              </optgroup>
+          <select
+            name="collection_id"
+            value={selectedCollectionId}
+            disabled={!selectedSection}
+            onChange={(event) => setSelectedCollectionId(event.currentTarget.value)}
+            className={input}
+          >
+            <option value="">
+              {selectedCategoryId
+                ? selectedSection
+                  ? "No collection"
+                  : "No collections for this category"
+                : "Choose a category first"}
+            </option>
+            {selectedCollectionId && !selectedCollectionBelongsToSection && (
+              <option value={selectedCollectionId}>
+                {selectedCollection?.name ?? "Current collection"}
+              </option>
             )}
+            {selectedSection?.items.map((item) => {
+              const collection = collectionBySlug.get(item.slug);
+              return (
+                <option key={item.slug} value={collection?.id ?? item.slug} disabled={!collection}>
+                  {item.label}
+                  {collection ? "" : " (add in Catalog)"}
+                </option>
+              );
+            })}
           </select>
         </Field>
       </div>
@@ -1307,9 +1370,12 @@ function ProductMedia({
   };
 
   return (
-    <div className="rounded-md border border-ink/10 bg-canvas p-3">
+    <div className="min-w-0 overflow-hidden rounded-md border border-ink/10 bg-canvas p-3">
       <p className="font-semibold">Images</p>
-      <form onSubmit={addImage} className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px_44px]">
+      <form
+        onSubmit={addImage}
+        className="mt-3 grid min-w-0 gap-2 md:grid-cols-[minmax(0,1fr)_110px_44px]"
+      >
         <input name="image_file" type="file" accept="image/*" className={fileInput} />
         <input name="sort_order" type="number" defaultValue={0} className={input} />
         <button
@@ -1319,22 +1385,22 @@ function ProductMedia({
         >
           <ImagePlus className="size-4" />
         </button>
-        <input name="alt" placeholder="Alt text" className={`${input} sm:col-span-3`} />
+        <input name="alt" placeholder="Alt text" className={`${input} md:col-span-3`} />
       </form>
-      <div className="mt-3 grid gap-2">
+      <div className="mt-3 grid min-w-0 gap-2">
         {(product.product_images ?? []).map((image) => (
           <div
             key={image.id}
-            className="flex items-center gap-3 rounded-md border border-ink/10 bg-card p-2"
+            className="flex min-w-0 items-center gap-3 rounded-md border border-ink/10 bg-card p-2"
           >
             <img
               src={image.url}
               alt={image.alt ?? product.name}
-              className="size-14 rounded-md object-cover"
+              className="size-14 shrink-0 rounded-md object-cover"
             />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm">{image.alt || "Product image"}</p>
-              <p className="truncate text-xs text-muted-warm">{image.url}</p>
+              <p className="max-w-full truncate text-xs text-muted-warm">{image.url}</p>
             </div>
             <IconButton
               label="Delete image"
@@ -1386,9 +1452,9 @@ function ProductVariants({
   };
 
   return (
-    <div className="rounded-md border border-ink/10 bg-canvas p-3">
+    <div className="min-w-0 overflow-hidden rounded-md border border-ink/10 bg-canvas p-3">
       <p className="font-semibold">Variants</p>
-      <form onSubmit={addVariant} className="mt-3 grid gap-2 sm:grid-cols-5">
+      <form onSubmit={addVariant} className="mt-3 grid min-w-0 gap-2 md:grid-cols-5">
         <input name="size" placeholder="Size" className={input} />
         <input name="color" placeholder="Color" className={input} />
         <input name="sku" placeholder="SKU" className={input} />
@@ -1405,13 +1471,13 @@ function ProductVariants({
         {(product.product_variants ?? []).map((variant) => (
           <div
             key={variant.id}
-            className="flex items-center justify-between gap-3 rounded-md border border-ink/10 bg-card p-2"
+            className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-ink/10 bg-card p-2"
           >
-            <div className="text-sm">
-              <p className="font-semibold">
+            <div className="min-w-0 text-sm">
+              <p className="truncate font-semibold">
                 {variant.size || "Any size"} / {variant.color || "Any color"}
               </p>
-              <p className="text-xs text-muted-warm">
+              <p className="truncate text-xs text-muted-warm">
                 {variant.sku || "No SKU"} / {variant.stock} in stock
               </p>
             </div>
