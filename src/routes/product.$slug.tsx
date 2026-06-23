@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Heart, Minus, Plus } from "lucide-react";
 import { z } from "zod";
+import { CustomOrderForm } from "@/components/CustomOrderForm";
 import { SiteShell } from "@/components/layout/SiteShell";
 import { ProductCard } from "@/components/ProductCard";
 import { StarRating } from "@/components/StarRating";
@@ -29,6 +30,20 @@ export const Route = createFileRoute("/product/$slug")({
 
 const SIZES = ["XS", "S", "M", "L", "XL"];
 
+function productCollectionSlug(product: { collections?: { slug: string } | null; categories?: { slug: string } | null }) {
+  return product.collections?.slug ?? product.categories?.slug ?? "";
+}
+
+function isCustomOrderProduct(slug: string) {
+  return slug.endsWith("-custom-order");
+}
+
+function productSelectionKind(slug: string) {
+  if (slug === "ladies-shoes") return "shoe";
+  if (slug === "ladies-hair") return "hair";
+  return "size";
+}
+
 function ProductPage() {
   const { slug } = Route.useParams();
   const navigate = useNavigate();
@@ -38,6 +53,8 @@ function ProductPage() {
   const { data: related = [] } = useQuery(productsQuery({}));
 
   const [size, setSize] = useState("M");
+  const [shoeSize, setShoeSize] = useState("");
+  const [hairLength, setHairLength] = useState("");
   const [qty, setQty] = useState(1);
   const [activeImg, setActiveImg] = useState(0);
 
@@ -57,6 +74,19 @@ function ProductPage() {
 
   const images = [...(product.product_images ?? [])].sort((a, b) => a.sort_order - b.sort_order);
   const hero = images[activeImg]?.url ?? primaryImage(product);
+  const collectionSlug = productCollectionSlug(product);
+  const customOrderProduct = isCustomOrderProduct(collectionSlug);
+  const selectionKind = productSelectionKind(collectionSlug);
+  const selectedOption =
+    selectionKind === "shoe"
+      ? shoeSize.trim()
+        ? `Shoe size: ${shoeSize.trim()}`
+        : ""
+      : selectionKind === "hair"
+        ? hairLength.trim()
+          ? `Hair length: ${hairLength.trim()}`
+          : ""
+        : size;
 
   const addToCart = async (then?: "cart") => {
     if (!user) {
@@ -64,8 +94,22 @@ function ProductPage() {
       navigate({ to: "/auth" });
       return;
     }
+    if (!selectedOption) {
+      toast.error(
+        selectionKind === "shoe"
+          ? "Please enter your shoe size."
+          : "Please enter your preferred hair length.",
+      );
+      return;
+    }
     const { error } = await supabase.from("cart_items").upsert(
-      { user_id: user.id, product_id: product.id, quantity: qty, size, color: "As shown" },
+      {
+        user_id: user.id,
+        product_id: product.id,
+        quantity: qty,
+        size: selectedOption,
+        color: "As shown",
+      },
       { onConflict: "user_id,product_id,size,color" },
     );
     if (error) {
@@ -132,37 +176,84 @@ function ProductPage() {
             </div>
             <p className="mt-6 max-w-[52ch] text-pretty leading-relaxed text-muted-warm">{product.description}</p>
 
-            <div className="mt-8">
-              <p className="mb-3 text-xs uppercase tracking-[0.2em]">Size</p>
-              <div className="flex flex-wrap gap-2">
-                {SIZES.map((s) => (
-                  <button key={s} onClick={() => setSize(s)} className={`size-11 rounded-full border text-sm transition-colors ${size === s ? "border-ink bg-ink text-canvas" : "border-ink/20 hover:border-ink"}`}>
-                    {s}
+            {customOrderProduct ? (
+              <div className="mt-8 rounded-[12px] border border-ink/10 bg-card p-5">
+                <p className="mb-5 text-xs font-bold uppercase tracking-[0.22em] text-muted-warm">
+                  Request this custom order
+                </p>
+                <CustomOrderForm
+                  defaultOccasion={product.name}
+                  notesPrefix={`Requested product: ${product.name}`}
+                  submitLabel="Submit Custom Request"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="mt-8">
+                  {selectionKind === "shoe" ? (
+                    <>
+                      <p className="mb-3 text-xs uppercase tracking-[0.2em]">Shoe Size</p>
+                      <input
+                        value={shoeSize}
+                        onChange={(event) => setShoeSize(event.target.value)}
+                        placeholder="e.g. EU 39, UK 6, US 8"
+                        className="min-h-12 w-full rounded-md border border-ink/20 bg-transparent px-4 outline-none focus:border-ink"
+                      />
+                    </>
+                  ) : selectionKind === "hair" ? (
+                    <>
+                      <p className="mb-3 text-xs uppercase tracking-[0.2em]">Hair Length</p>
+                      <input
+                        value={hairLength}
+                        onChange={(event) => setHairLength(event.target.value)}
+                        placeholder="e.g. 18 inches, 22 inches"
+                        className="min-h-12 w-full rounded-md border border-ink/20 bg-transparent px-4 outline-none focus:border-ink"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <p className="mb-3 text-xs uppercase tracking-[0.2em]">Size</p>
+                      <div className="flex flex-wrap gap-2">
+                        {SIZES.map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => setSize(s)}
+                            className={`size-11 rounded-full border text-sm transition-colors ${
+                              size === s
+                                ? "border-ink bg-ink text-canvas"
+                                : "border-ink/20 hover:border-ink"
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="mt-8 flex items-center gap-6">
+                  <div className="flex items-center gap-4 rounded-full border border-ink/20 px-4 py-2">
+                    <button aria-label="Decrease" onClick={() => setQty((q) => Math.max(1, q - 1))}><Minus className="size-4" /></button>
+                    <span className="w-6 text-center">{qty}</span>
+                    <button aria-label="Increase" onClick={() => setQty((q) => q + 1)}><Plus className="size-4" /></button>
+                  </div>
+                  <span className="text-sm text-muted-warm">{product.stock > 0 ? "In stock" : "Made to order"}</span>
+                </div>
+
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                  <button onClick={() => addToCart()} className="flex-1 rounded-full border border-ink py-4 text-xs font-bold uppercase tracking-[0.2em] transition-colors hover:bg-ink hover:text-canvas">
+                    Add to Cart
                   </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-8 flex items-center gap-6">
-              <div className="flex items-center gap-4 rounded-full border border-ink/20 px-4 py-2">
-                <button aria-label="Decrease" onClick={() => setQty((q) => Math.max(1, q - 1))}><Minus className="size-4" /></button>
-                <span className="w-6 text-center">{qty}</span>
-                <button aria-label="Increase" onClick={() => setQty((q) => q + 1)}><Plus className="size-4" /></button>
-              </div>
-              <span className="text-sm text-muted-warm">{product.stock > 0 ? "In stock" : "Made to order"}</span>
-            </div>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <button onClick={() => addToCart()} className="flex-1 rounded-full border border-ink py-4 text-xs font-bold uppercase tracking-[0.2em] transition-colors hover:bg-ink hover:text-canvas">
-                Add to Cart
-              </button>
-              <button onClick={() => addToCart("cart")} className="flex-1 rounded-full bg-ink py-4 text-xs font-bold uppercase tracking-[0.2em] text-canvas transition-transform hover:scale-[1.02]">
-                Buy Now
-              </button>
-              <button onClick={addWishlist} aria-label="Add to wishlist" className="grid size-14 shrink-0 place-items-center rounded-full border border-ink/20 transition-colors hover:bg-secondary">
-                <Heart className="size-5" />
-              </button>
-            </div>
+                  <button onClick={() => addToCart("cart")} className="flex-1 rounded-full bg-ink py-4 text-xs font-bold uppercase tracking-[0.2em] text-canvas transition-transform hover:scale-[1.02]">
+                    Buy Now
+                  </button>
+                  <button onClick={addWishlist} aria-label="Add to wishlist" className="grid size-14 shrink-0 place-items-center rounded-full border border-ink/20 transition-colors hover:bg-secondary">
+                    <Heart className="size-5" />
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
