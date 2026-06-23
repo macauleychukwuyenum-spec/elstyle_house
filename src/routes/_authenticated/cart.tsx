@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_authenticated/cart")({
   component: Cart,
 });
 
-const DELIVERY_FEE ="not included" ;
+const DELIVERY_FEE = 5000;
 
 export type CartRow = {
   id: string;
@@ -74,7 +74,11 @@ function Cart() {
                     <div className="flex justify-between">
                       <div>
                         <h3 className="font-serif text-lg">{i.products.name}</h3>
-                        <p className="text-xs text-muted-warm">Size {i.size}</p>
+                        {i.size && (
+                          <p className="text-xs text-muted-warm">
+                            {i.size.includes(":") ? i.size : `Size ${i.size}`}
+                          </p>
+                        )}
                       </div>
                       <p className="font-medium">{formatNaira(Number(i.products.price) * i.quantity)}</p>
                     </div>
